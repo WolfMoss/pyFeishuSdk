@@ -1,0 +1,6 @@
+{
+    "app_id": "cli_xxxxxxxxxxxxxxxx",
+    "app_secret": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "_说明": "请将此文件复制为 config.json 并填入你的飞书自建应用凭证",
+    "_获取方式": "飞书开放平台 -> 开发者后台 -> 选择应用 -> 基础信息 -> 凭证与基础信息"
+}
