@@ -27,6 +27,52 @@ def get_feishu_clients():
     return DocumentAPI(client), BitableAPI(client), WikiAPI(client), DriveAPI(client)
 
 
+def _repair_mojibake(text: str) -> str:
+    if not isinstance(text, str) or not text:
+        return text
+
+    candidates = [text]
+    for src, dst in (("latin1", "utf-8"), ("gbk", "utf-8")):
+        try:
+            repaired = text.encode(src).decode(dst)
+        except Exception:
+            continue
+        if repaired and repaired not in candidates:
+            candidates.append(repaired)
+    return candidates[-1]
+
+
+def _normalize_bitable_fields(
+    bitable_api: BitableAPI, app_token: str, table_id: str, fields: dict
+) -> dict:
+    schema = bitable_api.list_fields(app_token, table_id)
+    alias_to_actual = {}
+    expected_labels = [
+        "时间",
+        "标题",
+        "一级分类",
+        "二级分类",
+        "三级分类",
+        "链接",
+        "内容摘要",
+    ]
+
+    for idx, field in enumerate(schema):
+        actual = field.get("field_name")
+        if not actual:
+            continue
+        for alias in {actual, _repair_mojibake(actual)}:
+            if alias:
+                alias_to_actual[alias] = actual
+        if idx < len(expected_labels):
+            alias_to_actual[expected_labels[idx]] = actual
+
+    normalized = {}
+    for key, value in fields.items():
+        normalized[alias_to_actual.get(key, key)] = value
+    return normalized
+
+
 # ---------------------------------------------------------
 # 工具定义：搜索与发现
 # ---------------------------------------------------------
@@ -85,6 +131,7 @@ def add_bitable_record(app_token: str, table_id: str, fields_json: str) -> str:
     """往多维表格插入一条记录。fields_json 是 JSON 字符串，格式为 {"字段名": "值", ...}。"""
     _, bitable_api, _, _ = get_feishu_clients()
     fields = json.loads(fields_json)
+    fields = _normalize_bitable_fields(bitable_api, app_token, table_id, fields)
     res = bitable_api.create_record(app_token, table_id, fields)
     return f"记录已插入。Record ID: {res['record']['record_id']}"
 
@@ -93,6 +140,7 @@ def update_bitable_record(app_token: str, table_id: str, record_id: str, fields_
     """更新多维表格中的一条记录。fields_json 是 JSON 字符串，格式为 {"字段名": "新值", ...}。"""
     _, bitable_api, _, _ = get_feishu_clients()
     fields = json.loads(fields_json)
+    fields = _normalize_bitable_fields(bitable_api, app_token, table_id, fields)
     bitable_api.update_record(app_token, table_id, record_id, fields)
     return f"记录 {record_id} 已更新。"
 
